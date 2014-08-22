@@ -1,0 +1,143 @@
+#!@PERL@
+
+use strict;
+use warnings;
+
+use utf8;
+use Getopt::Long;
+use SIAM;
+use YAML;
+use JSON;
+
+BEGIN {
+    if('@perllibdirs@' ne '') {
+        unshift(@INC, split(/\s+/, '@perllibdirs@'));
+    }
+}
+
+
+my $siam_config;
+my $objclass;
+my $container_id;
+my $container_class;
+my $attrfilter;
+
+my $ok =  GetOptions
+    ('cfg=s'   => \$siam_config,
+     'class=s' => \$objclass,
+     'container=s' => \$container_id,
+     'containerclass=s' => \$container_class,
+     'attr=s' => \$attrfilter,
+    );
+
+
+if( not $ok or not defined($siam_config) or
+    not defined($objclass) or
+    ( defined($container_id) and not defined($container_class) ) or
+    scalar(@ARGV) > 0 )
+{
+    print STDERR
+        ('Usage: ' . $0 . ' --cfg=CFG.yaml --class=CLASS [options...]' . "\n",
+         "  --cfg=CFG.yaml         SIAM driver configuration\n",
+         "  --class=CLASS          Object class\n",
+         "  --container=ID         Optional container ID\n",
+         "  --containerclass=CLASS Mandatory if container ID is specified \n",
+         "  --attr=NAME:VALUE      Optional search criterion\n",
+         "\n");
+    exit(1);
+};
+
+
+my $siamcfg = eval { YAML::LoadFile($siam_config) };
+if( $@ )
+{
+    Error("Cannot load YAML data from ${siam_config}: $@");
+    exit(1);
+}
+
+my $siam = new SIAM($siamcfg);
+if( not defined($siam) )
+{
+    Error('Failed to load SIAM');
+    exit(1);
+}
+
+if( not $siam->connect() )
+{
+    Error('Failed connecting to SIAM');
+    exit(1);
+}
+
+
+my $attr_name;
+my $attr_value;
+
+if( defined($attrfilter) )
+{
+    if( $attrfilter !~ /^([a-z0-9._]+):(.+)/ ) {
+        Error('Invalid syntax for the attribute filter: ' . $attrfilter);
+        exit(1);
+    }
+    $attr_name = $1;
+    $attr_value = $2;
+}
+    
+
+my $result;
+
+if( defined($container_id) )
+{
+    my $c = $siam->instantiate_object($container_class, $container_id);
+    if( not defined($c) )
+    {
+        exit(1);
+    }
+
+    my $opts;
+    if( defined($attr_name) )
+    {
+        $opts =
+        {
+         'match_attribute' => [$attr_name, [$attr_value]]
+        };
+    }
+
+    $result = $c->get_contained_objects($objclass, $opts);
+}
+else
+{
+    $result = $siam->get_objects_by_attribute($objclass,
+                                              $attr_name, $attr_value);
+}
+
+my $out = [];
+foreach my $obj (@{$result})
+{
+    push(@{$out}, $obj->attributes());
+}
+
+binmode(STDOUT);
+my $json = JSON->new->utf8(1)->pretty(1)->canonical(1);
+print $json->encode($out);
+
+exit(0);
+
+
+
+sub Error
+{
+    my $msg = shift;
+    print STDERR $msg, "\n";
+    return;
+}
+
+
+# Local Variables:
+# mode: cperl
+# indent-tabs-mode: nil
+# cperl-indent-level: 4
+# cperl-continued-statement-offset: 4
+# cperl-continued-brace-offset: -4
+# cperl-brace-offset: 0
+# cperl-label-offset: -2
+# End:
