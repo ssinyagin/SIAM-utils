@@ -21,6 +21,8 @@ my $objclass;
 my $container_id;
 my $container_class;
 my $attrfilter;
+my $search_id;
+my $show_container;
 
 my $ok =  GetOptions
     ('cfg=s'   => \$siam_config,
@@ -28,6 +30,9 @@ my $ok =  GetOptions
      'container=s' => \$container_id,
      'containerclass=s' => \$container_class,
      'attr=s' => \$attrfilter,
+     'id=s' => \$search_id,
+     'sc' => \$show_container,
+     'showcontainer' => \$show_container,
     );
 
 
@@ -43,6 +48,8 @@ if( not $ok or not defined($siam_config) or
          "  --container=ID         Optional container ID\n",
          "  --containerclass=CLASS Mandatory if container ID is specified \n",
          "  --attr=NAME:VALUE      Optional search criterion\n",
+         "  --id=VALUE             Search for specific object ID\n",
+         "  --showcontainer (--sc) Display the container object\n",
          "\n");
     exit(1);
 };
@@ -85,7 +92,17 @@ if( defined($attrfilter) )
 
 my $result;
 
-if( defined($container_id) )
+if( defined($search_id) )
+{
+    my $o = $siam->instantiate_object($objclass, $search_id);
+    if( not defined($o) )
+    {
+        exit(1);
+    }
+
+    $result = [$o];    
+}
+elsif( defined($container_id) )
 {
     my $c = $siam->instantiate_object($container_class, $container_id);
     if( not defined($c) )
@@ -113,7 +130,15 @@ else
 my $out = [];
 foreach my $obj (@{$result})
 {
-    push(@{$out}, $obj->attributes());
+    my $attr = $obj->attributes();
+    if( $show_container )
+    {
+        my $c = $obj->contained_in();
+        $attr->{'CONTAINER_ID'} = $c->id();
+        $attr->{'CONTAINER_CLASS'} = $c->objclass();
+    }
+                       
+    push(@{$out}, $attr);
 }
 
 binmode(STDOUT);
