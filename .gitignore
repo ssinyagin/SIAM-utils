@@ -10,4 +10,5 @@ configure
 configure.lineno
 -*.tar.gz
 setup_tools/substvars.sh
+bin/siam_computable
 bin/siam_search

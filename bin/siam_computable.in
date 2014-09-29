@@ -1,0 +1,115 @@
+#!@PERL@
+
+use strict;
+use warnings;
+
+use utf8;
+use Getopt::Long;
+use SIAM;
+use YAML;
+use JSON;
+
+BEGIN {
+    if('@perllibdirs@' ne '') {
+        unshift(@INC, split(/\s+/, '@perllibdirs@'));
+    }
+}
+
+
+my $siam_config;
+my $objclass;
+my $objid;
+my $computable;
+
+my $ok =  GetOptions
+    ('cfg=s'   => \$siam_config,
+     'class=s' => \$objclass,
+     'id=s' => \$objid,
+     'computable=s' => \$computable,
+    );
+
+
+if( not $ok or not defined($siam_config) or
+    not defined($objclass) or
+    not defined($objid) or
+    not defined($computable) or
+    scalar(@ARGV) > 0 )
+{
+    print STDERR
+        ('Usage: ' . $0 .
+         ' --cfg=CFG.yaml --class=CLASS --id=ID --computable=NAME' . "\n",
+         "  --cfg=CFG.yaml         SIAM driver configuration\n",
+         "  --class=CLASS          Object class\n",
+         "  --id=ID                Object ID\n",
+         "  --computable=NAME      Name of the computable\n",
+         "\n");
+    exit(1);
+};
+
+
+my $siamcfg = eval { YAML::LoadFile($siam_config) };
+if( $@ )
+{
+    Error("Cannot load YAML data from ${siam_config}: $@");
+    exit(1);
+}
+
+my $siam = new SIAM($siamcfg);
+if( not defined($siam) )
+{
+    Error('Failed to load SIAM');
+    exit(1);
+}
+
+if( not $siam->connect() )
+{
+    Error('Failed connecting to SIAM');
+    exit(1);
+}
+
+
+
+
+my $o = $siam->instantiate_object($objclass, $objid);
+if( not defined($o) )
+{
+    exit(1);
+}
+
+my $result = $o->computable($computable);
+if( not defined($result) )
+{
+    Error('Computable returned undef');
+}
+elsif( $result eq '' )
+{
+    Error('Computable returned empty string');
+}
+else
+{
+    print $result, "\n";
+}
+
+
+
+exit(0);
+
+
+
+sub Error
+{
+    my $msg = shift;
+    print STDERR $msg, "\n";
+    return;
+}
+
+
+# Local Variables:
+# mode: cperl
+# indent-tabs-mode: nil
+# cperl-indent-level: 4
+# cperl-continued-statement-offset: 4
+# cperl-continued-brace-offset: -4
+# cperl-brace-offset: 0
+# cperl-label-offset: -2
+# End:
